@@ -107,22 +107,55 @@ def verwijder_cookiebanner(page):
         pass
 
 
-def wacht_op_inhoud(page, timeout=45000):
+def wacht_op_inhoud(page, timeout_ms=90000, stabiel_ms=20000):
     """
     Wacht tot de dag-inhoud klaar is: ofwel er verschijnt minstens één
-    wedstrijdkaart, ofwel de "geen wedstrijden"-melding. De pagina doet
-    zelf periodiek een herhaalpoging (elke ~10-30s) als de eerste fetch
-    nog niet is aangeslagen, dus een ruime timeout is nodig.
+    wedstrijdkaart, ofwel de "geen wedstrijden"-melding.
+
+    lmb.com.mx blijkt in de praktijk niet altijd snel of betrouwbaar: de
+    pagina blijft soms een halve minuut of langer op de laad-spinner
+    hangen (in ieder geval ooit gezien met een 504 van de eigen
+    afbeeldingen-CDN erbij, dus dit lijkt een backend-probleem bij hen,
+    geen fout in onze code) vóórdat de eerste fetch zelfs maar aanslaat.
+    Belangrijker nog: we hebben gezien dat "geen wedstrijden" soms een
+    KORTSTONDIGE, onjuiste tussenstand is, die de pagina zelf later
+    corrigeert zodra haar eigen periodieke herhaalpoging alsnog de echte
+    wedstrijd(en) ophaalt. Als we die eerste lege stand meteen voor waar
+    aannemen, scrapen we een fout-negatief resultaat (lege JSON terwijl
+    er wél wedstrijden waren — precies wat er gebeurde).
+
+    Daarom: een wedstrijdkaart is meteen genoeg (positief resultaat kan
+    niet fout-positief zijn). Maar "geen wedstrijden" accepteren we pas
+    als die stand minstens `stabiel_ms` achtereen ONVERANDERD blijft.
     """
-    page.wait_for_function(
-        """() => {
-            const el = document.querySelector('div.content');
-            if (!el) return false;
-            if (el.querySelector('[class*="Game_gameContainer"]')) return true;
-            return /no hay juegos/i.test(el.innerText || '');
-        }""",
-        timeout=timeout,
-    )
+    deadline = time.monotonic() + timeout_ms / 1000
+    leeg_sinds = None
+    while True:
+        status = page.evaluate(
+            """() => {
+                const el = document.querySelector('div.content');
+                if (!el) return 'geen-content-div';
+                if (el.querySelector('[class*="Game_gameContainer"]')) return 'wedstrijd';
+                if (/no hay juegos/i.test(el.innerText || '')) return 'leeg';
+                return 'laden';
+            }"""
+        )
+        if status == "wedstrijd":
+            return
+        if status == "leeg":
+            nu = time.monotonic()
+            if leeg_sinds is None:
+                leeg_sinds = nu
+            elif nu - leeg_sinds >= stabiel_ms / 1000:
+                return
+        else:
+            leeg_sinds = None
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"Pagina liet na {timeout_ms}ms geen stabiele inhoud zien "
+                f"(laatste status: {status})."
+            )
+        time.sleep(1)
 
 
 def parse_team_namen_en_logos(kaart):
@@ -279,16 +312,6 @@ def selecteer_dag(page, richting):
         pijl = pijlen.first if richting < 0 else pijlen.last
         pijl.click()
     wacht_op_inhoud(page)
-
-
-def haal_dag_op(page, richting_vanaf_vandaag, datum_str):
-    """
-    Navigeert (indien nodig) naar de gevraagde dag t.o.v. "vandaag"
-    (0 = vandaag, -1 = gisteren, ...) en leest de kaarten van die dag uit.
-    """
-    for _ in range(abs(richting_vanaf_vandaag)):
-        selecteer_dag(page, -1 if richting_vanaf_vandaag < 0 else 1)
-    return parse_kaarten(page, datum_str)
 
 
 def main():
