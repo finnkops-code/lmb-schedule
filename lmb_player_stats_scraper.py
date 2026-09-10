@@ -63,9 +63,27 @@ PITCHEO_VELDEN = [
     "boletos_otorgados", "ponches", "whip", "promedio_bateo_rival",
 ]
 
-TABEL_SELECTOR = "table.StatsTable_entityTable__tDPxk"
+# lmb.com.mx rendert de statistiekentabel, net als de standenpagina,
+# redundant in meerdere responsive lay-outs tegelijk (phone/tablet/
+# desktop), elk met een EIGEN <table>-element en een net iets andere
+# klassenaam (bv. "StatsTable_entityTable__tDPxk" binnen de (soms
+# verborgen) tablet-laag versus "StatsLayout_entityTable__eKIac" binnen
+# de desktop-laag) — beide bevatten wel exact dezelfde 10 rijen. Welke
+# van de twee daadwerkelijk zichtbaar is hangt af van de viewportbreedte
+# op het moment van laden. In plaats van op één specifieke klassenaam te
+# gokken (wat op smallere/andere breedtes een onzichtbare of verouderde
+# kopie kan opleveren), matchen we op het gedeelde substring
+# "entityTable__" en pakken we altijd expliciet de op dat moment
+# zichtbare tabel.
+TABEL_SELECTOR = 'table[class*="entityTable__"]:visible'
 MAX_PAGINAS = 300  # veiligheidslimiet tegen een eventuele oneindige lus
 API_PATROON = re.compile(r"/estadisticas/api/")
+
+
+def actieve_tabel(page):
+    """Geeft de op dit moment zichtbare statistiekentabel terug (zie de
+    toelichting bij TABEL_SELECTOR hierboven)."""
+    return page.locator(TABEL_SELECTOR).first
 
 
 def maak_absoluut(src):
@@ -105,7 +123,23 @@ def open_filters(page):
 
 
 def wacht_op_tabel(page, timeout_ms=90000):
-    page.wait_for_selector(TABEL_SELECTOR + " tbody tr", timeout=timeout_ms)
+    """Wacht tot de zichtbare tabel (zie actieve_tabel()) een eerste rij
+    met echte inhoud toont. ":visible" is een Playwright-eigen
+    pseudo-klasse (niet bruikbaar in ruwe DOM-JS), dus we gebruiken
+    hiervoor uitsluitend Locator-methodes, niet page.evaluate/
+    querySelector."""
+    rij = actieve_tabel(page).locator("tbody tr").first
+    rij.wait_for(state="visible", timeout=timeout_ms)
+
+    deadline = time.monotonic() + timeout_ms / 1000
+    while True:
+        if rij.inner_text().strip():
+            return
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"Tabelrij bleef leeg binnen {timeout_ms}ms."
+            )
+        time.sleep(0.3)
 
 
 def klik_en_wacht_op_data(page, actie, timeout_ms=90000):
@@ -195,7 +229,7 @@ def lees_rij(rij, veld_namen):
 
 
 def lees_huidige_pagina(page, veld_namen):
-    rijen = page.locator(f"{TABEL_SELECTOR} tbody tr")
+    rijen = actieve_tabel(page).locator("tbody tr")
     return [lees_rij(rijen.nth(i), veld_namen) for i in range(rijen.count())]
 
 
@@ -233,7 +267,11 @@ def main():
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
-                context = browser.new_context(user_agent=USER_AGENT, locale="es-MX")
+                context = browser.new_context(
+                    user_agent=USER_AGENT,
+                    locale="es-MX",
+                    viewport={"width": 1440, "height": 900},
+                )
                 page = context.new_page()
                 print(f"Pagina laden (poging {poging}/{pogingen}): {URL}")
                 page.goto(URL, wait_until="domcontentloaded", timeout=60000)
