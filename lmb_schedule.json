@@ -1,6 +1,31 @@
 {
-  "bijgewerkt": "2026-09-10T15:32:08Z",
+  "bijgewerkt": "2026-09-10T15:46:12Z",
   "bron": "https://lmb.com.mx/juegos",
-  "uitslagen": [],
+  "uitslagen": [
+    {
+      "datum": "2026-09-09",
+      "game_id": 867487,
+      "uit": "Olmecas",
+      "uit_logo": "https://d11rb39sj794dg.cloudfront.net/public/2026-03/olmecas_azul.png",
+      "thuis": "Toros",
+      "thuis_logo": "https://d11rb39sj794dg.cloudfront.net/public/2024-04/Toros.png",
+      "score_uit": 2,
+      "score_thuis": 13,
+      "status": "FINAL",
+      "gespeeld": true,
+      "live": false,
+      "winnende_werper": {
+        "naam": "Adonis Medina",
+        "stats": "5.0 IP / 1.61 ERA"
+      },
+      "verliezende_werper": {
+        "naam": "Jeremy Rhoades",
+        "stats": "4.0 IP / 4.45 ERA"
+      },
+      "gered_door": null,
+      "werper_uit": null,
+      "werper_thuis": null
+    }
+  ],
   "programma": []
 }
