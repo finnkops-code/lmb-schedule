@@ -115,6 +115,7 @@ def open_filters(page):
     paneel = page.locator(".StatFilters_filterWrapper__v5bMw").first
     if paneel.count() and paneel.is_visible():
         return
+    verwijder_cookiebanner(page)
     knop = page.locator(".StatFilters_toggle__ZREHg:visible").first
     try:
         knop.click(timeout=15000)
@@ -149,7 +150,14 @@ def klik_en_wacht_op_data(page, actie, timeout_ms=90000):
     endpoint dus nooit zelf aan, we wachten alleen tot de browser (net
     als bij een echte bezoeker) de eigen aanroep heeft afgerond, en geven
     React vervolgens een fractie van een seconde om de nieuwe tabel te
-    tekenen."""
+    tekenen.
+
+    Verwijdert vlak vóór elke actie ook opnieuw de cookiebanner: die kan,
+    net als bij lmb_schedule_scraper.py gebleken, later in de sessie
+    terugkomen (of pas na de eerste, vroege verwijdering alsnog
+    ingeladen worden) en dan met zijn backdrop precies de knop blokkeren
+    waar we op willen klikken."""
+    verwijder_cookiebanner(page)
     with page.expect_response(
         lambda r: API_PATROON.search(r.url) is not None, timeout=timeout_ms
     ):
