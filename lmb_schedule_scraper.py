@@ -79,11 +79,30 @@ def maak_absoluut(src):
 
 
 def klik_cookiebanner(page):
-    """Sluit de cookie-consent-banner (Silktide) als die aanwezig is."""
+    """
+    Sluit de cookie-consent-banner (Silktide). We proberen eerst netjes op
+    "Aceptar todas" te klikken, maar de consent-manager laadt zijn script
+    asynchroon in — soms staat de knop er nog niet als we hier langskomen,
+    en soms blijft de onzichtbare "#silktide-backdrop" ook ná een succesvolle
+    klik nog "pointer-events" onderscheppen. Om te voorkomen dat die
+    backdrop straks de datum-tab-klik in selecteer_dag() blokkeert
+    (precies de "subtree intercepts pointer events"-fout die de site liet
+    zien), verwijderen we de hele consent-wrapper hoe dan ook uit de DOM,
+    ongeacht of de klik zelf lukte.
+    """
     try:
         knop = page.locator("#silktide-wrapper button", has_text=re.compile("aceptar", re.I))
-        if knop.count() > 0:
-            knop.first.click(timeout=3000)
+        knop.first.click(timeout=8000)
+    except Exception:
+        pass
+    finally:
+        verwijder_cookiebanner(page)
+
+
+def verwijder_cookiebanner(page):
+    """Haalt de consent-wrapper (banner + backdrop + cookie-icoon) hard weg."""
+    try:
+        page.evaluate("document.getElementById('silktide-wrapper')?.remove()")
     except Exception:
         pass
 
@@ -244,6 +263,7 @@ def selecteer_dag(page, richting):
     selectie, of gebruikt de pijl als die tab niet in het huidige venster
     van dagen zichtbaar is.
     """
+    verwijder_cookiebanner(page)
     datums = page.locator('[class*="DateNavigation_date__"]')
     geselecteerd_idx = None
     for i in range(datums.count()):
