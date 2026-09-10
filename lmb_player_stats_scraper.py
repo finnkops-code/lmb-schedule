@@ -216,7 +216,17 @@ def lees_rij(rij, veld_namen):
         naam = volledige_tekst
 
     img = rij.locator("img").first
-    team = img.get_attribute("alt") if img.count() else None
+    if img.count():
+        ruwe_team = img.get_attribute("alt") or ""
+        # Genormaliseerd (trim + interne witruimte samengevoegd): de site
+        # levert soms een team-naam met een verdwaalde spatie (bv. een
+        # trailing space), waardoor bateo- en pitcheo-rijen van hetzelfde
+        # team anders als twee verschillende teams worden gezien door alle
+        # code die de teamnaam als exacte matching-/groeperingssleutel
+        # gebruikt (o.a. de PHP-widget).
+        team = " ".join(ruwe_team.split()) or None
+    else:
+        team = None
     team_logo = maak_absoluut(img.get_attribute("src")) if img.count() else None
 
     cellen = rij.locator("td")
