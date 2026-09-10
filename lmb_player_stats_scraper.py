@@ -263,9 +263,22 @@ def main():
     pogingen = 3
     laatste_fout = None
     bateo, pitcheo = [], []
-    for poging in range(1, pogingen + 1):
-        try:
-            with sync_playwright() as p:
+    gelukt = False
+
+    # Eén sync_playwright()-driver voor de hele run (niet per poging
+    # opnieuw aanmaken): herhaaldelijk een nieuwe sync_playwright()-
+    # instantie starten in hetzelfde proces bleek in de praktijk
+    # (GitHub Actions) tot een corrupte asyncio-status te kunnen leiden
+    # zodra een eerdere poging vroegtijdig faalde ("This event loop is
+    # already running" / "Please use the Async API instead"), omdat de
+    # browser dan niet netjes werd afgesloten vóórdat de driver zelf
+    # stopte. We herstarten daarom alleen de BROWSER per poging, en
+    # sluiten die altijd af via try/finally — ook als er onderweg een
+    # fout optreedt.
+    with sync_playwright() as p:
+        for poging in range(1, pogingen + 1):
+            browser = None
+            try:
                 browser = p.chromium.launch(headless=True)
                 context = browser.new_context(
                     user_agent=USER_AGENT,
@@ -284,14 +297,23 @@ def main():
                 print("Pitcheo-statistieken lezen...")
                 pitcheo = haal_categorie_op(page, "Pitcheo", PITCHEO_VELDEN)
 
-                browser.close()
-            break
-        except Exception as e:
-            laatste_fout = e
-            print(f"Poging {poging} mislukt: {e}")
+                gelukt = True
+            except Exception as e:
+                laatste_fout = e
+                print(f"Poging {poging} mislukt: {e}")
+            finally:
+                if browser is not None:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
+
+            if gelukt:
+                break
             if poging < pogingen:
                 time.sleep(5)
-    else:
+
+    if not gelukt:
         raise RuntimeError(f"Alle {pogingen} pogingen mislukt: {laatste_fout}")
 
     output = {
