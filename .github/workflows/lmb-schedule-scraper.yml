@@ -1,4 +1,4 @@
-name: LMB schedule scraper
+name: LMB standings scraper
 
 on:
   schedule:
@@ -25,13 +25,13 @@ jobs:
           pip install playwright
           playwright install --with-deps chromium
 
-      - name: Programma en uitslagen scrapen
-        run: python lmb_schedule_scraper.py
+      - name: Standen scrapen
+        run: python lmb_standings_scraper.py
 
       - name: Wijzigingen committen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add lmb_schedule.json
-          git diff --staged --quiet || git commit -m "Update LMB programma en uitslagen"
+          git add lmb_standings.json
+          git diff --staged --quiet || git commit -m "Update LMB standen"
           git push
